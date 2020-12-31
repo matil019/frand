@@ -48,7 +48,7 @@ data Distribution = Uniform UniformArgs | Normal NormalArgs
   deriving (Eq, Show)
 
 versionFlag :: Parser (a -> a)
-versionFlag = O.infoOption VERSION_frand (O.long "version" <> O.help "Show the version")
+versionFlag = O.infoOption VERSION_frand (O.long "version" <> O.help "Show the version" <> O.hidden)
 
 main :: IO ()
 main = do
