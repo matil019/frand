@@ -4,7 +4,9 @@
 {-# LANGUAGE RecordWildCards #-}
 module Main where
 
+import CmdArgs (SeedArgs, seedArgsParser)
 import Control.Applicative ((<|>))
+import Control.Arrow (first)
 import Options.Applicative (Parser, customExecParser)
 import Options.Applicative qualified as O
 import System.Random.MWC (createSystemRandom, uniformRM)
@@ -16,8 +18,8 @@ data UniformArgs = UniformArgs
   }
   deriving (Eq, Show)
 
-uniformArgsParser :: Parser UniformArgs
-uniformArgsParser = namedParser <|> positionalParser
+uniformArgsParser :: Parser (UniformArgs, SeedArgs)
+uniformArgsParser = (,) <$> (namedParser <|> positionalParser) <*> seedArgsParser
   where
   namedParser = (\minincl maxincl -> UniformArgs{..})
     <$> O.option O.auto (O.long "min" <> O.metavar "MIN" <> O.help "Minimum value, inclusive")
@@ -33,8 +35,8 @@ data NormalArgs = NormalArgs
   }
   deriving (Eq, Show)
 
-normalArgsParser :: Parser NormalArgs
-normalArgsParser = namedParser <|> positionalParser
+normalArgsParser :: Parser (NormalArgs, SeedArgs)
+normalArgsParser = (,) <$> (namedParser <|> positionalParser) <*> seedArgsParser
   where
   namedParser = (\mean stddev -> NormalArgs{..})
     <$> O.option O.auto (O.long "mean"   <> O.metavar "MEAN"   <> O.help "Mean")
@@ -52,10 +54,10 @@ versionFlag = O.infoOption VERSION_frand (O.long "version" <> O.help "Show the v
 
 main :: IO ()
 main = do
-  args <- customExecParser (O.prefs O.showHelpOnError) $
+  (args, _) <- customExecParser (O.prefs O.showHelpOnError) $
     let allOpts = O.hsubparser
-          ( O.command "uniform" (O.info (Uniform <$> uniformArgsParser) (O.progDesc "Print a random number in uniform distribution"))
-         <> O.command "normal"  (O.info (Normal  <$> normalArgsParser ) (O.progDesc "Print a random number in normal distribution"))
+          ( O.command "uniform" (O.info (first Uniform <$> uniformArgsParser) (O.progDesc "Print a random number in uniform distribution"))
+         <> O.command "normal"  (O.info (first Normal  <$> normalArgsParser ) (O.progDesc "Print a random number in normal distribution"))
           )
     in O.info (versionFlag <*> O.helper <*> allOpts)
        ( O.fullDesc
