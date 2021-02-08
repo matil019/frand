@@ -4,7 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Main where
 
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), optional)
 import Options.Applicative (Parser, customExecParser)
 import Options.Applicative qualified as O
 import System.Random.MWC (createSystemRandom, uniformRM)
@@ -13,6 +13,7 @@ import System.Random.MWC.Distributions (normal)
 data UniformArgs = UniformArgs
   { minincl :: Double
   , maxincl :: Double
+  -- TODO seedIn, seedOut
   }
   deriving (Eq, Show)
 
@@ -28,19 +29,28 @@ uniformArgsParser = namedParser <|> positionalParser
     <*> O.argument O.auto (O.metavar "MAX")
 
 data NormalArgs = NormalArgs
-  { mean   :: Double
-  , stddev :: Double
+  { mean    :: Double
+  , stddev  :: Double
+  , seedIn  :: Maybe FilePath
+  , seedOut :: Maybe FilePath
   }
   deriving (Eq, Show)
 
 normalArgsParser :: Parser NormalArgs
-normalArgsParser = namedParser <|> positionalParser
+normalArgsParser =
+  (\(seedIn, seedOut) (mean, stddev) -> NormalArgs{..})
+  <$> optionsParser
+  <*> (namedParser <|> positionalParser)
   where
-  namedParser = (\mean stddev -> NormalArgs{..})
+  optionsParser = (,)
+    <$> optional (O.strOption (O.long "seed-in" <> O.metavar "FILE" <> O.help "RNG seed file"))
+    <*> optional (O.strOption (O.long "seed-out" <> O.metavar "FILE" <> O.help "File to output seed after generating a number"))
+
+  namedParser = (,)
     <$> O.option O.auto (O.long "mean"   <> O.metavar "MEAN"   <> O.help "Mean")
     <*> O.option O.auto (O.long "stddev" <> O.metavar "STDDEV" <> O.help "Standard deviation")
 
-  positionalParser = (\mean stddev -> NormalArgs{..})
+  positionalParser = (,)
     <$> O.argument O.auto (O.metavar "MEAN")
     <*> O.argument O.auto (O.metavar "STDDEV")
 
