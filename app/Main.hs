@@ -83,6 +83,7 @@ main = do
   -- I'm too lazy to convert Word8s to Word32s by hand; I just use casts here as well as writeSeedFile.
   -- On reading, NUL bytes are padded as necessary.
   readSeedFile fp = do
+    -- TODO read no more than 258 * 4 = 1032 bytes, because mwc-random uses at most 258 Word32s?
     bs <- B.readFile fp
     let word8s = VS.unfoldrN (roundUp 4 $ B.length bs) (\i -> Just (fromMaybe 0 $ bs B.!? i, succ i)) 0
         word32s = VS.unsafeCast word8s
