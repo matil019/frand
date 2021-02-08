@@ -75,23 +75,22 @@ main = do
         Uniform UniformArgs{minincl, maxincl} -> uniformRM (minincl, maxincl)
         Normal  NormalArgs{mean, stddev} -> normal mean stddev
 
-  g <- case seedIn seedArgs of
-    Just f -> do
-      bs <- B.readFile f
-      -- I'm too lazy to convert Word8s to Word32s by hand; I just use casts here and there,
-      -- padding NUL bytes as necessary.
-      let word8s = VS.unfoldrN (roundUp 4 $ B.length bs) (\i -> Just (fromMaybe 0 $ bs B.!? i, succ i)) 0
-          word32s = VS.unsafeCast word8s
-      MWC.initialize word32s
-    Nothing -> createSystemRandom
-
+  g <- maybe createSystemRandom readSeedFile $ seedIn seedArgs
   print =<< distr g
+  maybe (pure ()) (flip writeSeedFile g) $ seedOut seedArgs
 
-  case seedOut seedArgs of
-    Nothing -> pure ()
-    Just f -> do
-      word32sU <- MWC.fromSeed <$> MWC.save g
-      let word32sS = VS.convert word32sU
-          word8s = VS.unsafeCast word32sS
-          bs = B.unfoldr VS.uncons word8s
-      B.writeFile f bs
+  where
+  -- I'm too lazy to convert Word8s to Word32s by hand; I just use casts here as well as writeSeedFile.
+  -- On reading, NUL bytes are padded as necessary.
+  readSeedFile fp = do
+    bs <- B.readFile fp
+    let word8s = VS.unfoldrN (roundUp 4 $ B.length bs) (\i -> Just (fromMaybe 0 $ bs B.!? i, succ i)) 0
+        word32s = VS.unsafeCast word8s
+    MWC.initialize word32s
+
+  writeSeedFile fp g = do
+    word32sU <- MWC.fromSeed <$> MWC.save g
+    let word32sS = VS.convert word32sU
+        word8s = VS.unsafeCast word32sS
+        bs = B.unfoldr VS.uncons word8s
+    B.writeFile fp bs
