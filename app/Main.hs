@@ -4,7 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Main where
 
-import CmdArgs (SeedArgs, seedArgsParser, seedIn)
+import CmdArgs (SeedArgs, seedArgsParser, seedIn, seedOut)
 import Control.Applicative ((<|>))
 import Control.Arrow (first)
 import Data.ByteString qualified as B
@@ -77,11 +77,21 @@ main = do
 
   g <- case seedIn seedArgs of
     Just f -> do
-      word8s <- B.readFile f
+      bs <- B.readFile f
       -- I'm too lazy to convert Word8s to Word32s by hand; I just use casts here and there,
       -- padding NUL bytes as necessary.
-      let word32s = VS.unsafeCast
-            $ VS.unfoldrN (roundUp 4 $ B.length word8s) (\i -> Just (fromMaybe 0 $ word8s B.!? i, succ i)) 0
+      let word8s = VS.unfoldrN (roundUp 4 $ B.length bs) (\i -> Just (fromMaybe 0 $ bs B.!? i, succ i)) 0
+          word32s = VS.unsafeCast word8s
       MWC.initialize word32s
     Nothing -> createSystemRandom
+
   print =<< distr g
+
+  case seedOut seedArgs of
+    Nothing -> pure ()
+    Just f -> do
+      word32sU <- MWC.fromSeed <$> MWC.save g
+      let word32sS = VS.convert word32sU
+          word8s = VS.unsafeCast word32sS
+          bs = B.unfoldr VS.uncons word8s
+      B.writeFile f bs
