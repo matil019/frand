@@ -6,6 +6,7 @@ arguments, stdin/out, etc.) rather than Haskell APIs are considered to decide ve
 ## 0.1.1.0 -- 2021-02-08
 
 * Add `--seed-in` and `--seed-out` for reproducible random numbers
+* Add `--num` for generating multiple numbers at once
 
 ## 0.1.0.0 -- YYYY-mm-dd
 
