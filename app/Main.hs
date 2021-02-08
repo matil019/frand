@@ -4,9 +4,10 @@
 {-# LANGUAGE RecordWildCards #-}
 module Main where
 
-import CmdArgs (CommonArgs, commonArgsParser, seedIn, seedOut)
+import CmdArgs (CommonArgs, commonArgsParser, numRand, seedIn, seedOut)
 import Control.Applicative ((<|>))
 import Control.Arrow (second)
+import Control.Monad (replicateM_)
 import Data.ByteString qualified as B
 import Data.Maybe (fromMaybe)
 import Data.Vector.Storable qualified as VS
@@ -76,7 +77,8 @@ main = do
         Normal  NormalArgs{mean, stddev} -> normal mean stddev
 
   g <- maybe createSystemRandom readSeedFile $ seedIn commonArgs
-  print =<< distr g
+  replicateM_ (numRand commonArgs) $
+    print =<< distr g
   maybe (pure ()) (flip writeSeedFile g) $ seedOut commonArgs
 
   where
