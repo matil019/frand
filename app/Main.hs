@@ -4,9 +4,10 @@
 {-# LANGUAGE RecordWildCards #-}
 module Main where
 
-import CmdArgs (SeedArgs, seedArgsParser, seedIn, seedOut)
+import CmdArgs (CommonArgs, commonArgsParser, numRand, seedIn, seedOut)
 import Control.Applicative ((<|>))
 import Control.Arrow (second)
+import Control.Monad (replicateM_)
 import Data.ByteString qualified as B
 import Data.Maybe (fromMaybe)
 import Data.Vector.Storable qualified as VS
@@ -22,8 +23,8 @@ data UniformArgs = UniformArgs
   }
   deriving (Eq, Show)
 
-uniformArgsParser :: Parser (SeedArgs, UniformArgs)
-uniformArgsParser = (,) <$> seedArgsParser <*> (namedParser <|> positionalParser)
+uniformArgsParser :: Parser (CommonArgs, UniformArgs)
+uniformArgsParser = (,) <$> commonArgsParser <*> (namedParser <|> positionalParser)
   where
   namedParser = (\minincl maxincl -> UniformArgs{..})
     <$> O.option O.auto (O.long "min" <> O.metavar "MIN" <> O.help "Minimum value, inclusive")
@@ -39,8 +40,8 @@ data NormalArgs = NormalArgs
   }
   deriving (Eq, Show)
 
-normalArgsParser :: Parser (SeedArgs, NormalArgs)
-normalArgsParser = (,) <$> seedArgsParser <*> (namedParser <|> positionalParser)
+normalArgsParser :: Parser (CommonArgs, NormalArgs)
+normalArgsParser = (,) <$> commonArgsParser <*> (namedParser <|> positionalParser)
   where
   namedParser = (\mean stddev -> NormalArgs{..})
     <$> O.option O.auto (O.long "mean"   <> O.metavar "MEAN"   <> O.help "Mean")
@@ -61,7 +62,7 @@ roundUp r n = (n + (r - 1)) `div` r * r
 
 main :: IO ()
 main = do
-  (seedArgs, distrArgs) <- customExecParser (O.prefs O.showHelpOnError) $
+  (commonArgs, distrArgs) <- customExecParser (O.prefs O.showHelpOnError) $
     let allOpts = O.hsubparser
           ( O.command "uniform" (O.info (second Uniform <$> uniformArgsParser) (O.progDesc "Print a random number in uniform distribution"))
          <> O.command "normal"  (O.info (second Normal  <$> normalArgsParser ) (O.progDesc "Print a random number in normal distribution"))
@@ -75,9 +76,10 @@ main = do
         Uniform UniformArgs{minincl, maxincl} -> uniformRM (minincl, maxincl)
         Normal  NormalArgs{mean, stddev} -> normal mean stddev
 
-  g <- maybe createSystemRandom readSeedFile $ seedIn seedArgs
-  print =<< distr g
-  maybe (pure ()) (flip writeSeedFile g) $ seedOut seedArgs
+  g <- maybe createSystemRandom readSeedFile $ seedIn commonArgs
+  replicateM_ (numRand commonArgs) $
+    print =<< distr g
+  maybe (pure ()) (flip writeSeedFile g) $ seedOut commonArgs
 
   where
   -- I'm too lazy to convert Word8s to Word32s by hand; I just use casts here as well as writeSeedFile.
