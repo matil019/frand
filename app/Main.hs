@@ -4,12 +4,16 @@
 {-# LANGUAGE RecordWildCards #-}
 module Main where
 
-import CmdArgs (SeedArgs, seedArgsParser)
+import CmdArgs (SeedArgs, seedArgsParser, seedIn)
 import Control.Applicative ((<|>))
 import Control.Arrow (first)
+import Data.ByteString qualified as B
+import Data.Maybe (fromMaybe)
+import Data.Vector.Storable qualified as VS
 import Options.Applicative (Parser, customExecParser)
 import Options.Applicative qualified as O
 import System.Random.MWC (createSystemRandom, uniformRM)
+import System.Random.MWC qualified as MWC
 import System.Random.MWC.Distributions (normal)
 
 data UniformArgs = UniformArgs
@@ -52,9 +56,12 @@ data Distribution = Uniform UniformArgs | Normal NormalArgs
 versionFlag :: Parser (a -> a)
 versionFlag = O.infoOption VERSION_frand (O.long "version" <> O.help "Show the version")
 
+roundUp :: Int -> Int -> Int
+roundUp r n = (n + (r - 1)) `div` r * r
+
 main :: IO ()
 main = do
-  (args, _) <- customExecParser (O.prefs O.showHelpOnError) $
+  (distrArgs, seedArgs) <- customExecParser (O.prefs O.showHelpOnError) $
     let allOpts = O.hsubparser
           ( O.command "uniform" (O.info (first Uniform <$> uniformArgsParser) (O.progDesc "Print a random number in uniform distribution"))
          <> O.command "normal"  (O.info (first Normal  <$> normalArgsParser ) (O.progDesc "Print a random number in normal distribution"))
@@ -63,7 +70,18 @@ main = do
        ( O.fullDesc
       <> O.progDesc "Print a random decimal number"
        )
-  let distr = case args of
+
+  let distr = case distrArgs of
         Uniform UniformArgs{minincl, maxincl} -> uniformRM (minincl, maxincl)
         Normal  NormalArgs{mean, stddev} -> normal mean stddev
-  print =<< distr =<< createSystemRandom
+
+  g <- case seedIn seedArgs of
+    Just f -> do
+      word8s <- B.readFile f
+      -- I'm too lazy to convert Word8s to Word32s by hand; I just use casts here and there,
+      -- padding NUL bytes as necessary.
+      let word32s = VS.unsafeCast
+            $ VS.unfoldrN (roundUp 4 $ B.length word8s) (\i -> Just (fromMaybe 0 $ word8s B.!? i, succ i)) 0
+      MWC.initialize word32s
+    Nothing -> createSystemRandom
+  print =<< distr g
