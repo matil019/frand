@@ -6,7 +6,7 @@ module Main where
 
 import CmdArgs (SeedArgs, seedArgsParser, seedIn, seedOut)
 import Control.Applicative ((<|>))
-import Control.Arrow (first)
+import Control.Arrow (second)
 import Data.ByteString qualified as B
 import Data.Maybe (fromMaybe)
 import Data.Vector.Storable qualified as VS
@@ -22,8 +22,8 @@ data UniformArgs = UniformArgs
   }
   deriving (Eq, Show)
 
-uniformArgsParser :: Parser (UniformArgs, SeedArgs)
-uniformArgsParser = (,) <$> (namedParser <|> positionalParser) <*> seedArgsParser
+uniformArgsParser :: Parser (SeedArgs, UniformArgs)
+uniformArgsParser = (,) <$> seedArgsParser <*> (namedParser <|> positionalParser)
   where
   namedParser = (\minincl maxincl -> UniformArgs{..})
     <$> O.option O.auto (O.long "min" <> O.metavar "MIN" <> O.help "Minimum value, inclusive")
@@ -39,8 +39,8 @@ data NormalArgs = NormalArgs
   }
   deriving (Eq, Show)
 
-normalArgsParser :: Parser (NormalArgs, SeedArgs)
-normalArgsParser = (,) <$> (namedParser <|> positionalParser) <*> seedArgsParser
+normalArgsParser :: Parser (SeedArgs, NormalArgs)
+normalArgsParser = (,) <$> seedArgsParser <*> (namedParser <|> positionalParser)
   where
   namedParser = (\mean stddev -> NormalArgs{..})
     <$> O.option O.auto (O.long "mean"   <> O.metavar "MEAN"   <> O.help "Mean")
@@ -61,10 +61,10 @@ roundUp r n = (n + (r - 1)) `div` r * r
 
 main :: IO ()
 main = do
-  (distrArgs, seedArgs) <- customExecParser (O.prefs O.showHelpOnError) $
+  (seedArgs, distrArgs) <- customExecParser (O.prefs O.showHelpOnError) $
     let allOpts = O.hsubparser
-          ( O.command "uniform" (O.info (first Uniform <$> uniformArgsParser) (O.progDesc "Print a random number in uniform distribution"))
-         <> O.command "normal"  (O.info (first Normal  <$> normalArgsParser ) (O.progDesc "Print a random number in normal distribution"))
+          ( O.command "uniform" (O.info (second Uniform <$> uniformArgsParser) (O.progDesc "Print a random number in uniform distribution"))
+         <> O.command "normal"  (O.info (second Normal  <$> normalArgsParser ) (O.progDesc "Print a random number in normal distribution"))
           )
     in O.info (versionFlag <*> O.helper <*> allOpts)
        ( O.fullDesc
