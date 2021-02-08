@@ -22,8 +22,8 @@ executable frand
   -- other-extensions:
   build-depends:       base >=4.14 && <4.15
                      , bytestring ==0.11.*
-                     , optparse-applicative
-                     , mwc-random
+                     , optparse-applicative >=0.15 && <0.17
+                     , mwc-random >=0.15 && <0.16
                      , vector
   hs-source-dirs:      app
   default-language:    Haskell2010

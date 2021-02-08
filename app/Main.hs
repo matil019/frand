@@ -55,7 +55,7 @@ data Distribution = Uniform UniformArgs | Normal NormalArgs
   deriving (Eq, Show)
 
 versionFlag :: Parser (a -> a)
-versionFlag = O.infoOption VERSION_frand (O.long "version" <> O.help "Show the version")
+versionFlag = O.infoOption VERSION_frand (O.long "version" <> O.help "Show the version" <> O.hidden)
 
 roundUp :: Int -> Int -> Int
 roundUp r n = (n + (r - 1)) `div` r * r
