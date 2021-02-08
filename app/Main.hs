@@ -4,10 +4,16 @@
 {-# LANGUAGE RecordWildCards #-}
 module Main where
 
+import CmdArgs (SeedArgs, seedArgsParser, seedIn, seedOut)
 import Control.Applicative ((<|>))
+import Control.Arrow (second)
+import Data.ByteString qualified as B
+import Data.Maybe (fromMaybe)
+import Data.Vector.Storable qualified as VS
 import Options.Applicative (Parser, customExecParser)
 import Options.Applicative qualified as O
 import System.Random.MWC (createSystemRandom, uniformRM)
+import System.Random.MWC qualified as MWC
 import System.Random.MWC.Distributions (normal)
 
 data UniformArgs = UniformArgs
@@ -16,8 +22,8 @@ data UniformArgs = UniformArgs
   }
   deriving (Eq, Show)
 
-uniformArgsParser :: Parser UniformArgs
-uniformArgsParser = namedParser <|> positionalParser
+uniformArgsParser :: Parser (SeedArgs, UniformArgs)
+uniformArgsParser = (,) <$> seedArgsParser <*> (namedParser <|> positionalParser)
   where
   namedParser = (\minincl maxincl -> UniformArgs{..})
     <$> O.option O.auto (O.long "min" <> O.metavar "MIN" <> O.help "Minimum value, inclusive")
@@ -33,8 +39,8 @@ data NormalArgs = NormalArgs
   }
   deriving (Eq, Show)
 
-normalArgsParser :: Parser NormalArgs
-normalArgsParser = namedParser <|> positionalParser
+normalArgsParser :: Parser (SeedArgs, NormalArgs)
+normalArgsParser = (,) <$> seedArgsParser <*> (namedParser <|> positionalParser)
   where
   namedParser = (\mean stddev -> NormalArgs{..})
     <$> O.option O.auto (O.long "mean"   <> O.metavar "MEAN"   <> O.help "Mean")
@@ -50,18 +56,42 @@ data Distribution = Uniform UniformArgs | Normal NormalArgs
 versionFlag :: Parser (a -> a)
 versionFlag = O.infoOption VERSION_frand (O.long "version" <> O.help "Show the version")
 
+roundUp :: Int -> Int -> Int
+roundUp r n = (n + (r - 1)) `div` r * r
+
 main :: IO ()
 main = do
-  args <- customExecParser (O.prefs O.showHelpOnError) $
+  (seedArgs, distrArgs) <- customExecParser (O.prefs O.showHelpOnError) $
     let allOpts = O.hsubparser
-          ( O.command "uniform" (O.info (Uniform <$> uniformArgsParser) (O.progDesc "Print a random number in uniform distribution"))
-         <> O.command "normal"  (O.info (Normal  <$> normalArgsParser ) (O.progDesc "Print a random number in normal distribution"))
+          ( O.command "uniform" (O.info (second Uniform <$> uniformArgsParser) (O.progDesc "Print a random number in uniform distribution"))
+         <> O.command "normal"  (O.info (second Normal  <$> normalArgsParser ) (O.progDesc "Print a random number in normal distribution"))
           )
     in O.info (versionFlag <*> O.helper <*> allOpts)
        ( O.fullDesc
       <> O.progDesc "Print a random decimal number"
        )
-  let distr = case args of
+
+  let distr = case distrArgs of
         Uniform UniformArgs{minincl, maxincl} -> uniformRM (minincl, maxincl)
         Normal  NormalArgs{mean, stddev} -> normal mean stddev
-  print =<< distr =<< createSystemRandom
+
+  g <- maybe createSystemRandom readSeedFile $ seedIn seedArgs
+  print =<< distr g
+  maybe (pure ()) (flip writeSeedFile g) $ seedOut seedArgs
+
+  where
+  -- I'm too lazy to convert Word8s to Word32s by hand; I just use casts here as well as writeSeedFile.
+  -- On reading, NUL bytes are padded as necessary.
+  readSeedFile fp = do
+    -- TODO read no more than 258 * 4 = 1032 bytes, because mwc-random uses at most 258 Word32s?
+    bs <- B.readFile fp
+    let word8s = VS.unfoldrN (roundUp 4 $ B.length bs) (\i -> Just (fromMaybe 0 $ bs B.!? i, succ i)) 0
+        word32s = VS.unsafeCast word8s
+    MWC.initialize word32s
+
+  writeSeedFile fp g = do
+    word32sU <- MWC.fromSeed <$> MWC.save g
+    let word32sS = VS.convert word32sU
+        word8s = VS.unsafeCast word32sS
+        bs = B.unfoldr VS.uncons word8s
+    B.writeFile fp bs
