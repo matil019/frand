@@ -20,7 +20,7 @@ executable frand
   main-is:             Main.hs
   other-modules:       CmdArgs
   -- other-extensions:
-  build-depends:       base >=4.14 && <4.16
+  build-depends:       base >=4.14 && <4.17
                      , bytestring ==0.11.*
                      , optparse-applicative >=0.15 && <0.17
                      , mwc-random >=0.15 && <0.16
