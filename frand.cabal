@@ -22,7 +22,7 @@ executable frand
   -- other-extensions:
   build-depends:       base >=4.14 && <4.17
                      , bytestring ==0.11.*
-                     , optparse-applicative >=0.15 && <0.17
+                     , optparse-applicative >=0.15 && <0.18
                      , mwc-random >=0.15 && <0.16
                      , vector >=0.12.2 && <0.13
   hs-source-dirs:      app
